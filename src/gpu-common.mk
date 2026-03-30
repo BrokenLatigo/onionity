@@ -1,6 +1,9 @@
-NVCC:=nvcc
+# Import ./configure output if available
+-include ../config.mk
 
-# GPU architecture targets. Use -gencode pairs for proper cross-generation support.
+NVCC?=nvcc
+
+# GPU architecture targets (auto-detected by ./configure, or set manually).
 # Override with: GPU_GENCODE="-gencode arch=compute_86,code=sm_86" make
 GPU_GENCODE?= \
   -gencode arch=compute_100,code=sm_100 \
