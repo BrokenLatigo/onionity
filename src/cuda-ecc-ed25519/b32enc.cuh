@@ -12,7 +12,7 @@
 
 /* Extract 5 bits starting at bit position `bit_offset` from a byte array.
  * bit_offset 0 = MSB of byte 0. */
-__device__ __host__ static inline int b32_extract5(const uint8_t* data, int bit_offset) {
+__device__ static inline int b32_extract5(const uint8_t* data, int bit_offset) {
     int byte_idx = bit_offset >> 3;
     int bit_idx  = bit_offset & 7;
 
@@ -26,7 +26,7 @@ __device__ __host__ static inline int b32_extract5(const uint8_t* data, int bit_
 
 /* Encode exactly 35 bytes -> 56 base32 characters (no padding, no NUL).
  * 35 * 8 = 280 bits, 280 / 5 = 56 characters exactly. */
-__device__ __host__ static void base32_enc_full(char out[56], const uint8_t in[35]) {
+__device__ static void base32_enc_full(char out[56], const uint8_t in[35]) {
     static const char b32alpha[] = "abcdefghijklmnopqrstuvwxyz234567";
 
     /* Append a zero byte so b32_extract5 can safely read one byte past the input
@@ -43,7 +43,7 @@ __device__ __host__ static void base32_enc_full(char out[56], const uint8_t in[3
 /* Encode the first `out_chars` base32 characters from the beginning of `data`.
  * `data_len` is the number of valid bytes in `data`.
  * Used for fast prefix filtering on the 32-byte public key before computing SHA3. */
-__device__ __host__ static void base32_enc_partial(char* out, const uint8_t* data, int data_len, int out_chars) {
+__device__ static void base32_enc_partial(char* out, const uint8_t* data, int data_len, int out_chars) {
     static const char b32alpha[] = "abcdefghijklmnopqrstuvwxyz234567";
 
     /* Copy into a zero-padded buffer so byte_idx+1 is always safe to read. */

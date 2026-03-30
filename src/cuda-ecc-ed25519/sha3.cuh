@@ -27,7 +27,7 @@ __device__ static const uint64_t keccak_rc[24] = {
 
 #define ROTL64(x, n) (((x) << (n)) | ((x) >> (64 - (n))))
 
-__device__ __host__ static inline void keccak_f1600(uint64_t st[25]) {
+__device__ static inline void keccak_f1600(uint64_t st[25]) {
     for (int round = 0; round < 24; ++round) {
         /* Theta */
         uint64_t C[5], D[5];
@@ -70,7 +70,7 @@ __device__ __host__ static inline void keccak_f1600(uint64_t st[25]) {
 }
 
 /* Load a little-endian uint64 from bytes (endian-neutral). */
-__device__ __host__ static inline uint64_t load64_le(const uint8_t* p) {
+__device__ static inline uint64_t load64_le(const uint8_t* p) {
     return (uint64_t)p[0]       | ((uint64_t)p[1] << 8)
         | ((uint64_t)p[2] << 16) | ((uint64_t)p[3] << 24)
         | ((uint64_t)p[4] << 32) | ((uint64_t)p[5] << 40)
@@ -78,7 +78,7 @@ __device__ __host__ static inline uint64_t load64_le(const uint8_t* p) {
 }
 
 /* Store a little-endian uint64 to bytes (endian-neutral). */
-__device__ __host__ static inline void store64_le(uint8_t* p, uint64_t v) {
+__device__ static inline void store64_le(uint8_t* p, uint64_t v) {
     p[0] = (uint8_t)(v);       p[1] = (uint8_t)(v >> 8);
     p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
     p[4] = (uint8_t)(v >> 32); p[5] = (uint8_t)(v >> 40);
@@ -99,7 +99,7 @@ __device__ __host__ static inline void store64_le(uint8_t* p, uint64_t v) {
  *   - Specifically: byte 48 = 0x06 (SHA3 domain sep), bytes 49..134 = 0x00, byte 135 = 0x80
  *   - In lane terms: lane 6 = 0x06 at byte offset 0, lane 16 has 0x80 at byte offset 7
  */
-__device__ __host__ static void sha3_256_48(uint8_t out[32], const uint8_t in[48]) {
+__device__ static void sha3_256_48(uint8_t out[32], const uint8_t in[48]) {
     uint64_t st[25];
     for (int i = 0; i < 25; ++i) st[i] = 0;
 
