@@ -186,16 +186,17 @@ void vanity_setup(vanity_config &cfg) {
 		cudaFree(dev_rseed);
 	}
 
-	// Initialize device globals for best-match tracking
-	int zeros[16] = {0};
-	cudaMemcpyToSymbol(dev_best_match_len, zeros, sizeof(zeros));
-	char blank[16][57];
-	memset(blank, 0, sizeof(blank));
-	cudaMemcpyToSymbol(dev_best_match_addr, blank, sizeof(blank));
-
-	// Initialize match queue write index
-	int zero = 0;
-	cudaMemcpyToSymbol(dev_match_write_idx, &zero, sizeof(int));
+	// Initialize device globals for best-match tracking on ALL GPUs
+	for (int i = 0; i < gpuCount; ++i) {
+		cudaSetDevice(i);
+		int zeros[16] = {0};
+		cudaMemcpyToSymbol(dev_best_match_len, zeros, sizeof(zeros));
+		char blank[16][57];
+		memset(blank, 0, sizeof(blank));
+		cudaMemcpyToSymbol(dev_best_match_addr, blank, sizeof(blank));
+		int zero = 0;
+		cudaMemcpyToSymbol(dev_match_write_idx, &zero, sizeof(int));
+	}
 
 	printf("GPU: Initialization Complete\n\n");
 }
@@ -230,14 +231,13 @@ void vanity_run(vanity_config &cfg) {
 		for (int g = 0; g < gpuCount; ++g) {
 			cudaSetDevice(g);
 
-			int blockSize = 0, minGridSize = 0, maxActiveBlocks = 0;
+			int blockSize = 0, minGridSize = 0;
 			cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, vanity_scan, 0, 0);
-			cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxActiveBlocks, vanity_scan, blockSize, 0);
 
 			cudaMemset(cfg.dev_keys_found[g], 0, sizeof(int));
 			cudaMemset(cfg.dev_exec_count[g], 0, sizeof(int));
 
-			vanity_scan<<<maxActiveBlocks, blockSize>>>(
+			vanity_scan<<<minGridSize, blockSize>>>(
 				cfg.states[g], cfg.dev_keys_found[g],
 				cfg.dev_gpu_id[g], cfg.dev_exec_count[g]
 			);
@@ -254,6 +254,7 @@ void vanity_run(vanity_config &cfg) {
 		// Gather results from all GPUs
 		int per_gpu_exec[8] = {0};
 		for (int g = 0; g < gpuCount; ++g) {
+			cudaSetDevice(g);
 			int exec_count = 0, found = 0;
 			cudaMemcpy(&found, cfg.dev_keys_found[g], sizeof(int), cudaMemcpyDeviceToHost);
 			cudaMemcpy(&exec_count, cfg.dev_exec_count[g], sizeof(int), cudaMemcpyDeviceToHost);
@@ -264,23 +265,36 @@ void vanity_run(vanity_config &cfg) {
 		executions_total += executions_this_iteration;
 		keys_found_total += keys_found_this_iteration;
 
-		// Read best-match state from device
-		int h_best_len[16];
-		char h_best_addr[16][57];
-		cudaMemcpyFromSymbol(h_best_len, dev_best_match_len, sizeof(h_best_len));
-		cudaMemcpyFromSymbol(h_best_addr, dev_best_match_addr, sizeof(h_best_addr));
+		// Read best-match state from all GPUs and merge (keep best per prefix)
+		int h_best_len[16] = {0};
+		char h_best_addr[16][57] = {{0}};
+		for (int g = 0; g < gpuCount; ++g) {
+			cudaSetDevice(g);
+			int gpu_best_len[16];
+			char gpu_best_addr[16][57];
+			cudaMemcpyFromSymbol(gpu_best_len, dev_best_match_len, sizeof(gpu_best_len));
+			cudaMemcpyFromSymbol(gpu_best_addr, dev_best_match_addr, sizeof(gpu_best_addr));
+			for (int p = 0; p < num_prefixes; ++p) {
+				if (gpu_best_len[p] > h_best_len[p]) {
+					h_best_len[p] = gpu_best_len[p];
+					memcpy(h_best_addr[p], gpu_best_addr[p], 57);
+				}
+			}
+		}
 
-		// Process match queue
-		int h_match_idx = 0;
-		cudaMemcpyFromSymbol(&h_match_idx, dev_match_write_idx, sizeof(int));
-
-		static int last_match_idx = 0;
-		while (last_match_idx < h_match_idx && last_match_idx < MAX_MATCH_QUEUE) {
-			match_record rec;
-			cudaMemcpyFromSymbol(&rec, dev_match_queue, sizeof(match_record),
-				last_match_idx * sizeof(match_record));
-			write_tor_hs_dir(rec.onion, rec.pubkey, rec.secret);
-			last_match_idx++;
+		// Process match queue from all GPUs
+		static int last_match_idx[8] = {0};
+		for (int g = 0; g < gpuCount; ++g) {
+			cudaSetDevice(g);
+			int h_match_idx = 0;
+			cudaMemcpyFromSymbol(&h_match_idx, dev_match_write_idx, sizeof(int));
+			while (last_match_idx[g] < h_match_idx && last_match_idx[g] < MAX_MATCH_QUEUE) {
+				match_record rec;
+				cudaMemcpyFromSymbol(&rec, dev_match_queue, sizeof(match_record),
+					last_match_idx[g] * sizeof(match_record));
+				write_tor_hs_dir(rec.onion, rec.pubkey, rec.secret);
+				last_match_idx[g]++;
+			}
 		}
 
 		// Timing
