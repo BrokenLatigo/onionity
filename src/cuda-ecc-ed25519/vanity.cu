@@ -392,7 +392,19 @@ void vanity_run(vanity_config &cfg) {
 		stats_lines++;
 
 		// Total attempts and timing
-		printf("\033[2K  Total attempts: %llu\n", executions_total);
+		{
+			double att = (double)executions_total;
+			const char* suffix = "";
+			if      (att >= 1e15) { att /= 1e15; suffix = "P"; }
+			else if (att >= 1e12) { att /= 1e12; suffix = "T"; }
+			else if (att >= 1e9)  { att /= 1e9;  suffix = "B"; }
+			else if (att >= 1e6)  { att /= 1e6;  suffix = "M"; }
+			else if (att >= 1e3)  { att /= 1e3;  suffix = "K"; }
+			if (suffix[0])
+				printf("\033[2K  Total attempts: %.2f%s\n", att, suffix);
+			else
+				printf("\033[2K  Total attempts: %llu\n", executions_total);
+		}
 		stats_lines++;
 
 		int total_secs = (int)total_elapsed.count();
