@@ -70,22 +70,32 @@ Edit `src/config.h` before building:
 |--------|---------|-------------|
 | `STOP_AFTER_KEYS_FOUND` | 1 | Stop after finding N matches |
 | `MAX_ITERATIONS` | 999999999 | Maximum kernel launch iterations |
-| `ATTEMPTS_PER_EXECUTION` | 100000 | Keys per thread per kernel launch |
+| `ATTEMPTS_PER_EXECUTION` | 5000 | Keys per thread per kernel launch |
 | `SEQUENTIAL_SEED` | 0 | 0=random per attempt, 1=sequential increment (fast but insecure) |
+
+### Performance
+
+Benchmarked hash rates per GPU (random seeds, `SEQUENTIAL_SEED=0`):
+
+| GPU | Hash Rate |
+|-----|-----------|
+| RTX 5080 | ~46.7 MH/s |
+
+Multi-GPU scales linearly — 4x RTX 5080 achieves ~187 MH/s.
 
 ### Prefix length vs time
 
-Base32 has 32 possible characters. Expected attempts to find a prefix of length N:
+Base32 has 32 possible characters. Expected attempts to find a prefix of length N (times based on a single RTX 5080 at ~46.7 MH/s):
 
-| Length | Expected attempts | ~Time at 100M/s |
-|--------|------------------|-----------------|
-| 4 | 1,048,576 | instant |
-| 5 | 33,554,432 | <1s |
-| 6 | 1,073,741,824 | ~10s |
-| 7 | 34,359,738,368 | ~6 min |
-| 8 | 1,099,511,627,776 | ~3 hours |
-| 9 | 35,184,372,088,832 | ~4 days |
-| 10 | 1,125,899,906,842,624 | ~130 days |
+| Length | Expected attempts | ~Time (1 GPU) | ~Time (4x 5080) |
+|--------|------------------|---------------|-----------------|
+| 4 | 1,048,576 | instant | instant |
+| 5 | 33,554,432 | <1s | <1s |
+| 6 | 1,073,741,824 | ~23s | ~6s |
+| 7 | 34,359,738,368 | ~12 min | ~3 min |
+| 8 | 1,099,511,627,776 | ~6.5 hours | ~1.6 hours |
+| 9 | 35,184,372,088,832 | ~8.7 days | ~2.2 days |
+| 10 | 1,125,899,906,842,624 | ~280 days | ~70 days |
 
 ### Output
 
