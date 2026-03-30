@@ -194,17 +194,14 @@ void vanity_setup(vanity_config &cfg) {
 		cudaDeviceProp device;
 		cudaGetDeviceProperties(&device, i);
 
-		int blockSize       = 0,
-		    minGridSize     = 0,
-		    maxActiveBlocks = 0;
+		int blockSize   = 0,
+		    minGridSize = 0;
 		cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, vanity_scan, 0, 0);
-		cudaOccupancyMaxActiveBlocksPerMultiprocessor(&maxActiveBlocks, vanity_scan, blockSize, 0);
 
-		printf("GPU: %d (%s <%d, %d, %d>) -- W: %d, P: %d, TPB: %d\n",
+		printf("GPU: %d (%s) -- %d threads (%d blocks x %d), %d SMs\n",
 			i, device.name,
-			blockSize, minGridSize, maxActiveBlocks,
-			device.warpSize, device.multiProcessorCount,
-			device.maxThreadsPerBlock
+			minGridSize * blockSize, minGridSize, blockSize,
+			device.multiProcessorCount
 		);
 
 		// Increase printf buffer for device-side match output
@@ -217,8 +214,8 @@ void vanity_setup(vanity_config &cfg) {
 		cudaMalloc((void**)&dev_rseed, sizeof(unsigned long long int));
 		cudaMemcpy(dev_rseed, &rseed, sizeof(unsigned long long int), cudaMemcpyHostToDevice);
 
-		cudaMalloc((void**)&(cfg.states[i]), maxActiveBlocks * blockSize * sizeof(curandState));
-		vanity_init<<<maxActiveBlocks, blockSize>>>(dev_rseed, cfg.states[i]);
+		cudaMalloc((void**)&(cfg.states[i]), minGridSize * blockSize * sizeof(curandState));
+		vanity_init<<<minGridSize, blockSize>>>(dev_rseed, cfg.states[i]);
 
 		// Pre-allocate per-GPU device buffers (fixed: no longer leaks in the loop)
 		cudaMalloc((void**)&cfg.dev_keys_found[i], sizeof(int));
