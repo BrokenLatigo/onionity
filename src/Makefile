@@ -14,7 +14,7 @@ include gpu-common.mk
 
 CHACHA_TEST_BIN=cuda_chacha_test
 ECC_TEST_BIN=cuda_ed25519_verify
-ECC_SCAN_BIN=cuda_ed25519_vanity
+ECC_SCAN_BIN=onionity
 LIB=cuda-crypt
 
 CUDA_HEADER_DIR:=cuda-headers
@@ -88,7 +88,7 @@ $V/ecc_main.o: $(addprefix $(ECC_DIR)/,main.cu ed25519.h)
 $V/$(ECC_TEST_BIN): $V/ecc_main.o $V/lib$(LIB).so
 	$(NVCC) $(CFLAGS) -L$V -l$(LIB) $< -o $@
 
-$V/ecc_scan.o: $(addprefix $(ECC_DIR)/,vanity.cu ed25519.h)
+$V/ecc_scan.o: $(addprefix $(ECC_DIR)/,vanity.cu ed25519.h sha3.cuh b32enc.cuh) config.h
 	@mkdir -p $(@D)
 	$(NVCC) -rdc=true $(CFLAGS) -c $< -o $@
 
