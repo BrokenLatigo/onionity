@@ -6,7 +6,7 @@ static int const STOP_AFTER_KEYS_FOUND = 1;
 
 // How many times a GPU thread generates a public key in one go.
 // Higher = less kernel launch overhead, lower = more responsive stats.
-static const int ATTEMPTS_PER_EXECUTION = 100000;
+static const int ATTEMPTS_PER_EXECUTION = 5000;
 
 // Seed increment mode:
 //   0 = random per attempt (better entropy, slower)
