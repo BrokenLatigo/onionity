@@ -243,6 +243,16 @@ void vanity_setup(vanity_config &cfg) {
 		cudaMemcpyToSymbol(dev_best_match_addr, blank, sizeof(blank));
 		int zero = 0;
 		cudaMemcpyToSymbol(dev_match_write_idx, &zero, sizeof(int));
+
+		// Verify prefixes were copied correctly
+		char verify[16][57];
+		int verify_count = 0;
+		cudaMemcpyFromSymbol(verify, dev_prefixes, sizeof(verify));
+		cudaMemcpyFromSymbol(&verify_count, dev_num_prefixes, sizeof(int));
+		printf("  GPU %d: %d prefix(es) loaded", i, verify_count);
+		for (int p = 0; p < verify_count; ++p)
+			printf(" [%s]", verify[p]);
+		printf("\n");
 	}
 
 	printf("GPU: Initialization Complete\n\n");
@@ -611,6 +621,7 @@ void __global__ vanity_scan(curandState* state, int* keys_found, int* gpu, int* 
 		// --- Tor v3 onion address: fast prefix filter + SHA3 + base32 ---
 		for (int pi = 0; pi < num_patterns; ++pi) {
 			int plen = prefix_letter_counts[pi];
+			if (plen <= 0) continue;
 
 			// Phase 1: Fast prefix filter using partial base32 of pubkey only.
 			// The first 51 base32 chars come entirely from the 32-byte pubkey
