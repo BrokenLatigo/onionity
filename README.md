@@ -25,18 +25,20 @@ The address derivation uses a **fast prefix filter**: since the first 51 base32 
 ## Build
 
 ```bash
-export PATH=/usr/local/cuda/bin:$PATH
+./configure
 make -j$(nproc)
 ```
 
-The binary is built at `src/release/onionity`.
+`./configure` auto-detects your CUDA toolkit and GPU architectures via `nvidia-smi`, then writes a `config.mk` used by the build. The binary is built at `src/release/onionity`.
+
+Alternatively, `./mk` runs configure automatically if needed, then builds.
 
 ### GPU Architecture
 
-By default, builds for sm_50 through sm_90 (Maxwell through Hopper). To target a specific GPU:
+To manually target a specific GPU architecture instead of auto-detecting:
 
 ```bash
-GPU_ARCHS=sm_86 make -j$(nproc)
+GPU_GENCODE="-gencode arch=compute_86,code=sm_86" make -j$(nproc)
 ```
 
 ## Configuration
