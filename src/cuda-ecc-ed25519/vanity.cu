@@ -36,6 +36,8 @@ struct match_record {
 	char    onion[57]; // 56 chars + NUL
 };
 
+__device__ char dev_prefixes[16][57];         // MAX_PATTERNS x MAX_PREFIX_LEN
+__device__ int  dev_num_prefixes;
 __device__ int  dev_best_match_len[16];       // MAX_PATTERNS
 __device__ char dev_best_match_addr[16][57];  // 56 base32 chars + NUL
 __device__ match_record dev_match_queue[16];  // MAX_MATCH_QUEUE
@@ -48,6 +50,8 @@ typedef struct {
 	int*            dev_keys_found[8];
 	int*            dev_exec_count[8];
 	int*            dev_gpu_id[8];
+	char            h_prefixes[16][57]; // MAX_PATTERNS x MAX_PREFIX_LEN
+	int             num_prefixes;
 } vanity_config;
 
 /* -- Prototypes ------------------------------------------------------------ */
@@ -64,8 +68,47 @@ static void     write_tor_hs_dir(const char* onion_addr, const uint8_t* pubkey, 
 int main(int argc, char const* argv[]) {
 	ed25519_set_verbose(true);
 
+	if (argc < 2) {
+		printf("Usage: %s <prefix> [prefix2] [prefix3] ...\n", argv[0]);
+		printf("  Prefixes use base32 alphabet: a-z, 2-7, ? = wildcard\n");
+		printf("  Example: %s onion test??\n", argv[0]);
+		return 1;
+	}
+
 	vanity_config cfg;
 	memset(&cfg, 0, sizeof(cfg));
+
+	cfg.num_prefixes = 0;
+	for (int a = 1; a < argc && cfg.num_prefixes < MAX_PATTERNS; ++a) {
+		const char* prefix = argv[a];
+		int len = (int)strlen(prefix);
+		if (len >= MAX_PREFIX_LEN) {
+			printf("ERROR: prefix '%s' too long (max %d chars)\n", prefix, MAX_PREFIX_LEN - 1);
+			return 1;
+		}
+		// Validate characters
+		bool valid = true;
+		for (int c = 0; c < len; ++c) {
+			char ch = prefix[c];
+			if (!((ch >= 'a' && ch <= 'z') || (ch >= '2' && ch <= '7') || ch == '?')) {
+				printf("ERROR: invalid character '%c' in prefix '%s'\n", ch, prefix);
+				printf("  Valid characters: a-z, 2-7, ? (wildcard)\n");
+				valid = false;
+				break;
+			}
+		}
+		if (!valid) return 1;
+
+		strncpy(cfg.h_prefixes[cfg.num_prefixes], prefix, MAX_PREFIX_LEN - 1);
+		cfg.h_prefixes[cfg.num_prefixes][MAX_PREFIX_LEN - 1] = '\0';
+		cfg.num_prefixes++;
+	}
+
+	printf("Searching for %d prefix(es):\n", cfg.num_prefixes);
+	for (int p = 0; p < cfg.num_prefixes; ++p)
+		printf("  %d: %s\n", p, cfg.h_prefixes[p]);
+	printf("\n");
+
 	vanity_setup(cfg);
 	vanity_run(cfg);
 }
@@ -186,9 +229,13 @@ void vanity_setup(vanity_config &cfg) {
 		cudaFree(dev_rseed);
 	}
 
-	// Initialize device globals for best-match tracking on ALL GPUs
+	// Initialize device globals on ALL GPUs
 	for (int i = 0; i < gpuCount; ++i) {
 		cudaSetDevice(i);
+		// Copy prefixes to device
+		cudaMemcpyToSymbol(dev_prefixes, cfg.h_prefixes, sizeof(cfg.h_prefixes));
+		cudaMemcpyToSymbol(dev_num_prefixes, &cfg.num_prefixes, sizeof(int));
+		// Zero best-match tracking
 		int zeros[16] = {0};
 		cudaMemcpyToSymbol(dev_best_match_len, zeros, sizeof(zeros));
 		char blank[16][57];
@@ -208,12 +255,12 @@ void vanity_run(vanity_config &cfg) {
 	unsigned long long int executions_total = 0;
 	int keys_found_total = 0;
 
-	const int num_prefixes = sizeof(prefixes_host) / sizeof(prefixes_host[0]);
+	const int num_prefixes = cfg.num_prefixes;
 
 	// Compute expected attempts for ETA/probability per prefix
 	int max_prefix_len = 0;
 	for (int p = 0; p < num_prefixes; ++p) {
-		int len = (int)strlen(prefixes_host[p]);
+		int len = (int)strlen(cfg.h_prefixes[p]);
 		// Count non-wildcard characters for probability
 		if (len > max_prefix_len) max_prefix_len = len;
 	}
@@ -359,12 +406,12 @@ void vanity_run(vanity_config &cfg) {
 		stats_lines++;
 
 		for (int p = 0; p < num_prefixes; ++p) {
-			int plen = (int)strlen(prefixes_host[p]);
+			int plen = (int)strlen(cfg.h_prefixes[p]);
 
 			// Count effective characters (non-wildcard) for probability
 			int effective_chars = 0;
 			for (int c = 0; c < plen; ++c) {
-				if (prefixes_host[p][c] != '?') effective_chars++;
+				if (cfg.h_prefixes[p][c] != '?') effective_chars++;
 			}
 
 			double expected = pow(32.0, effective_chars);
@@ -392,7 +439,7 @@ void vanity_run(vanity_config &cfg) {
 			printf("\033[2K  %-4d ", p);
 
 			// Print prefix
-			printf("\033[1;33m%-20s\033[0m ", prefixes_host[p]);
+			printf("\033[1;33m%-20s\033[0m ", cfg.h_prefixes[p]);
 			printf("%-8d ", plen);
 			printf("%-10s ", eta_str);
 
@@ -419,9 +466,9 @@ void vanity_run(vanity_config &cfg) {
 			int hardest_effective = 0;
 			for (int p = 0; p < num_prefixes; ++p) {
 				int eff = 0;
-				int plen = (int)strlen(prefixes_host[p]);
+				int plen = (int)strlen(cfg.h_prefixes[p]);
 				for (int c = 0; c < plen; ++c)
-					if (prefixes_host[p][c] != '?') eff++;
+					if (cfg.h_prefixes[p][c] != '?') eff++;
 				if (eff > hardest_effective) hardest_effective = eff;
 			}
 			double expected = pow(32.0, hardest_effective);
@@ -471,11 +518,11 @@ void __global__ vanity_scan(curandState* state, int* keys_found, int* gpu, int* 
 	atomicAdd(exec_count, 1);
 
 	// Precompute prefix lengths
-	int num_patterns = sizeof(prefixes) / sizeof(prefixes[0]);
+	int num_patterns = dev_num_prefixes;
 	int prefix_letter_counts[16]; // MAX_PATTERNS
 	for (int n = 0; n < num_patterns && n < MAX_PATTERNS; ++n) {
 		int letter_count = 0;
-		for (; prefixes[n][letter_count] != 0; letter_count++);
+		for (; dev_prefixes[n][letter_count] != 0; letter_count++);
 		prefix_letter_counts[n] = letter_count;
 	}
 
@@ -575,7 +622,7 @@ void __global__ vanity_scan(curandState* state, int* keys_found, int* gpu, int* 
 			bool fast_pass = true;
 			int fast_match_len = 0;
 			for (int j = 0; j < plen && j < 51; ++j) {
-				if (prefixes[pi][j] == '?' || prefixes[pi][j] == partial[j]) {
+				if (dev_prefixes[pi][j] == '?' || dev_prefixes[pi][j] == partial[j]) {
 					fast_match_len++;
 				} else {
 					fast_pass = false;
@@ -630,7 +677,7 @@ void __global__ vanity_scan(curandState* state, int* keys_found, int* gpu, int* 
 			bool full_match = true;
 			int full_match_len = 0;
 			for (int j = 0; j < plen; ++j) {
-				if (prefixes[pi][j] == '?' || prefixes[pi][j] == onion[j]) {
+				if (dev_prefixes[pi][j] == '?' || dev_prefixes[pi][j] == onion[j]) {
 					full_match_len++;
 				} else {
 					full_match = false;

@@ -41,30 +41,37 @@ To manually target a specific GPU architecture instead of auto-detecting:
 GPU_GENCODE="-gencode arch=compute_86,code=sm_86" make -j$(nproc)
 ```
 
-## Configuration
+## Usage
 
-Edit `src/config.h` before building:
-
-```c
-// Prefixes to search for (lowercase base32: a-z, 2-7, ? = wildcard)
-__device__ static char const *prefixes[] = {
-    "myprefix",
-};
-
-// Host-side mirror (must match prefixes above)
-static const char *prefixes_host[] = {
-    "myprefix",
-};
+```bash
+./run <prefix> [prefix2] [prefix3] ...
+# or directly:
+LD_LIBRARY_PATH=./src/release ./src/release/onionity <prefix> [prefix2] ...
 ```
 
-### Options
+Prefixes use the base32 alphabet: `a-z`, `2-7`, and `?` as a wildcard. Up to 16 prefixes can be searched simultaneously.
+
+```bash
+# Search for a single prefix
+./run onion
+
+# Search for multiple prefixes at once
+./run hello world test
+
+# Use wildcards (? matches any character)
+./run "my??site"
+```
+
+### Compile-time options
+
+Edit `src/config.h` before building:
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `STOP_AFTER_KEYS_FOUND` | 1 | Stop after finding N matches |
 | `MAX_ITERATIONS` | 999999999 | Maximum kernel launch iterations |
 | `ATTEMPTS_PER_EXECUTION` | 100000 | Keys per thread per kernel launch |
-| `SEQUENTIAL_SEED` | 1 | 1=fast sequential increment, 0=random per attempt |
+| `SEQUENTIAL_SEED` | 0 | 0=random per attempt, 1=sequential increment (fast but insecure) |
 
 ### Prefix length vs time
 
@@ -79,14 +86,6 @@ Base32 has 32 possible characters. Expected attempts to find a prefix of length 
 | 8 | 1,099,511,627,776 | ~3 hours |
 | 9 | 35,184,372,088,832 | ~4 days |
 | 10 | 1,125,899,906,842,624 | ~130 days |
-
-## Run
-
-```bash
-./run
-# or directly:
-LD_LIBRARY_PATH=./src/release ./src/release/onionity
-```
 
 ### Output
 

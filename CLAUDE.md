@@ -62,11 +62,11 @@ GPUs are enumerated with `cudaGetDeviceCount()`. Each GPU gets independent cuRAN
 
 ## Configuration
 
-Edit `src/config.h` before building. Both `prefixes[]` (`__device__`) and `prefixes_host[]` (host-side) must be kept in sync manually.
+Prefixes are specified at runtime as command-line arguments: `./run onion hello world`. Valid characters: `a-z`, `2-7` (base32 alphabet), `?` (wildcard). Up to 16 simultaneous prefixes.
 
-Valid prefix characters: `a-z`, `2-7` (base32 alphabet), `?` (wildcard).
+Compile-time options in `src/config.h`: `STOP_AFTER_KEYS_FOUND`, `MAX_ITERATIONS`, `ATTEMPTS_PER_EXECUTION`, `SEQUENTIAL_SEED`.
 
-`SEQUENTIAL_SEED=1` increments seed as counter (fast, insecure). `SEQUENTIAL_SEED=0` uses `curand()` per attempt.
+`SEQUENTIAL_SEED=0` (default) uses `curand()` per attempt. `SEQUENTIAL_SEED=1` increments seed as counter (fast, insecure).
 
 ## Verification
 
