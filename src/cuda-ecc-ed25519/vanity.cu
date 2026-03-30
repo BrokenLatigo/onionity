@@ -253,13 +253,11 @@ void vanity_run(vanity_config &cfg) {
 
 		// Gather results from all GPUs
 		int per_gpu_exec[8] = {0};
-		int per_gpu_found[8] = {0};
 		for (int g = 0; g < gpuCount; ++g) {
 			int exec_count = 0, found = 0;
 			cudaMemcpy(&found, cfg.dev_keys_found[g], sizeof(int), cudaMemcpyDeviceToHost);
 			cudaMemcpy(&exec_count, cfg.dev_exec_count[g], sizeof(int), cudaMemcpyDeviceToHost);
 			per_gpu_exec[g] = exec_count;
-			per_gpu_found[g] = found;
 			keys_found_this_iteration += found;
 			executions_this_iteration += (unsigned long long int)exec_count * ATTEMPTS_PER_EXECUTION;
 		}

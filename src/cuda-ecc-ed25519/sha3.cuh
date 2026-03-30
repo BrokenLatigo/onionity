@@ -10,7 +10,7 @@
  * Uses NIST domain separation byte 0x06 (not raw Keccak 0x01).
  */
 
-__device__ __host__ static const uint64_t keccak_rc[24] = {
+__device__ static const uint64_t keccak_rc[24] = {
     UINT64_C(0x0000000000000001), UINT64_C(0x0000000000008082),
     UINT64_C(0x800000000000808A), UINT64_C(0x8000000080008000),
     UINT64_C(0x000000000000808B), UINT64_C(0x0000000080000001),
